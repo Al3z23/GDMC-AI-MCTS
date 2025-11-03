@@ -1,0 +1,9 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "jadeExamples.jar",
+        "jade.jar",
+        "gson-2.10.1-javadoc.jar",
+        "gson-2.10.1.jar"
+    ]
+}
