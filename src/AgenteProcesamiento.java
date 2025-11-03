@@ -4,6 +4,14 @@ import jade.core.Agent;
 import jade.core.behaviours.Behaviour;
 import jade.core.behaviours.CyclicBehaviour;
 import jade.core.behaviours.OneShotBehaviour;
+import jade.lang.acl.ACLMessage;
+
+import java.io.FileWriter;   // Import the FileWriter class
+import java.io.IOException;  // Import the IOException class
+
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -20,9 +28,9 @@ public class AgenteProcesamiento extends Agent {
     public static int x,y,z;
     public static int[][][] matriz;
     public static int[][][] matrizActualizada;
-    public static int cajaX = 7;
+    public static int cajaX = 4;
     public static int cajaY = 3;
-    public static int cajaZ = 7;
+    public static int cajaZ = 4;
     public static List<int[]> mejorLista = new ArrayList<>();
     //public static List<int[]> listaAct = new ArrayList<>();
     public static int puntuacionMejorLista;
@@ -90,11 +98,31 @@ public class AgenteProcesamiento extends Agent {
         return lista;
     }
 
+    private static int[] seleccionarSalaRandom(int[][] listaSalas){
+        Random random = new Random();
+        return listaSalas[random.nextInt(listaSalas.length)];
+    }
+
 
 
     private static List<int[]> MCTS(int[][] listaSalas) throws IOException{
-        for(int i = 0; i<listaSalas.length;i++){ // cambiar a listaSalas.length
-            int[] pos = listaSalas[i]; // seleccionar sala
+        LocalTime ini = LocalTime.now();
+        //for(int i = 0; i<listaSalas.length;i++){ // cambiar a listaSalas.length
+        while(listaSalas.length > 0){   
+
+            int[] pos = seleccionarSalaRandom(listaSalas); // seleccionar sala
+            int[][] listaSalasAux = new int[listaSalas.length-1][3];
+            int a = 0;
+            for(int[] id : listaSalas){
+                if(!(id[0] == pos[0] && id[1] == pos[1] && id[2] == pos[2]) && a< listaSalasAux.length){
+                    listaSalasAux[a] = id;
+                    a++;
+                }
+                
+            }
+            listaSalas = new int[listaSalas.length-1][3];
+            listaSalas = listaSalasAux;
+            
             // System.out.println("Estoy en la it de la pos " + pos[0] + " "+ pos[1] + " "+ pos[2]);
             matrizActualizada = leerMatriz();
             for(int y1 = 0;y1<cajaY;y1++){
@@ -122,8 +150,12 @@ public class AgenteProcesamiento extends Agent {
             // for (int[] elem : listaAct){
             //     System.out.println("elem " + elem[0] + " " + elem[1] + " " + elem[2]);
             // }
+
         }
+
         // mejorLista.remove(mejorLista.size()-1);
+        LocalTime fin = LocalTime.now();
+        System.out.println("Posiciones obtenidas en " + Duration.between(ini, fin).toMillis() + "ms.");
         return mejorLista;
     } 
 
@@ -153,8 +185,22 @@ public class AgenteProcesamiento extends Agent {
             // }
             return listaAct;
         }
-        for(int i = 0; i<listaSalas.length;i++){
-            int[] pos = listaSalas[i];
+        //for(int i = 0; i<listaSalas.length;i++){
+        while(listaSalas.length > 0){
+            //int[] pos = listaSalas[i];
+
+            int[] pos = seleccionarSalaRandom(listaSalas);
+            int[][] listaSalasAux = new int[listaSalas.length-1][3];
+            int b = 0;
+            for(int[] id : listaSalas){
+                if(!id.equals(pos)){
+                    listaSalasAux[b] = id;
+                    b++;
+                }
+                
+            }
+            listaSalas = listaSalasAux;
+
             List<int[]> aux = new ArrayList<>(); // clonar listaAct
             for (int[] a : listaAct){
                 aux.add(a);
@@ -223,11 +269,20 @@ public class AgenteProcesamiento extends Agent {
             //         +posCajas[i][1] +" "+posCajas[i][2]);
             // }
 
-            List<int[]> memuero = MCTS(posCajas);
-            System.out.println(memuero.size());
-            for(int i= 0; i< memuero.size();i++){
-                System.out.println(memuero.get(i)[0] + " " + memuero.get(i)[1]+ " " + memuero.get(i)[2]);
+            List<int[]> salasAGenerar = MCTS(posCajas);
+            System.out.println("Salas a generar: "+salasAGenerar.size());
+            FileWriter myWriter = new FileWriter("listaSalasAGenerar.txt");
+            String listaSalas = "";
+            for(int i= 0; i< salasAGenerar.size();i++){
+                System.out.println(salasAGenerar.get(i)[0] + " " + salasAGenerar.get(i)[1]+ " " + salasAGenerar.get(i)[2]);
+                listaSalas += salasAGenerar.get(i)[0] + " " + salasAGenerar.get(i)[1]+ " " + salasAGenerar.get(i)[2] + "\n";
             }
+            myWriter.write(listaSalas);
+            myWriter.close();
+            // ACLMessage reply = new ACLMessage(ACLMessage.INFORM);
+		    // reply.addReceiver(null); // cambiar
+		    // reply.setContent("exiting");
+		    // send(reply);
         } catch (IOException e) {
             System.out.println("Error al importar la matriz");
         }
