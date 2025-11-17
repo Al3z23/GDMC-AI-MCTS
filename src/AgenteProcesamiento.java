@@ -45,6 +45,15 @@ public class AgenteProcesamiento extends Agent {
         return matriz;
     }
 
+    private static int[][] leerPosTam() throws IOException {
+        String contenido = new String(Files.readAllBytes(Paths.get("pos.txt")));
+        Gson gson = new Gson();
+        int[][] posTam = gson.fromJson(contenido, int[][].class);
+        y = posTam.length;
+        x = posTam[0].length;
+        return posTam;
+    }
+
 
 
     private static int[][] obtenerPosValidas(int cajaX, int cajaY, int cajaZ){
@@ -253,39 +262,211 @@ public class AgenteProcesamiento extends Agent {
         return listaAct;
     }
 
+
+
     
 
-    protected void setup() {
-        System.out.println("Agente "+getLocalName()+" ha empezado");
-        matriz = new int[y][x][z];
-        int[][] posCajas;
-        try {
-            matriz = leerMatriz(); // de texto a matriz
-            matrizActualizada = leerMatriz();
-            posCajas = obtenerPosValidas(cajaX,cajaY,cajaZ);
-            // System.out.println(posCajas.length);
-            // for(int i = 0; i< posCajas.length; i++){
-            //     System.out.println(posCajas[i][0] +" "
-            //         +posCajas[i][1] +" "+posCajas[i][2]);
-            // }
+    // protected void setup() {
+    //     System.out.println("Agente "+getLocalName()+" ha empezado");
+    //     // matriz = new int[y][x][z];
+    //     // int[][] posCajas;
+    //     try {
+    //         // matriz = leerMatriz(); // de texto a matriz
+    //         // matrizActualizada = leerMatriz();
+    //         // posCajas = obtenerPosValidas(cajaX,cajaY,cajaZ);
+    //         // System.out.println(posCajas.length);
+    //         // for(int i = 0; i< posCajas.length; i++){
+    //         //     System.out.println(posCajas[i][0] +" "
+    //         //         +posCajas[i][1] +" "+posCajas[i][2]);
+    //         // }
 
-            List<int[]> salasAGenerar = MCTS(posCajas);
-            System.out.println("Salas a generar: "+salasAGenerar.size());
-            FileWriter myWriter = new FileWriter("listaSalasAGenerar.txt");
-            String listaSalas = "";
-            for(int i= 0; i< salasAGenerar.size();i++){
-                System.out.println(salasAGenerar.get(i)[0] + " " + salasAGenerar.get(i)[1]+ " " + salasAGenerar.get(i)[2]);
-                listaSalas += salasAGenerar.get(i)[0] + " " + salasAGenerar.get(i)[1]+ " " + salasAGenerar.get(i)[2] + "\n";
+    //         // List<int[]> salasAGenerar = MCTS(posCajas);
+    //         // System.out.println("Salas a generar: "+salasAGenerar.size());
+    //         // FileWriter myWriter = new FileWriter("listaSalasAGenerar.txt");
+    //         // String listaSalas = "";
+    //         // for(int i= 0; i< salasAGenerar.size();i++){
+    //         //     System.out.println(salasAGenerar.get(i)[0] + " " + salasAGenerar.get(i)[1]+ " " + salasAGenerar.get(i)[2]);
+    //         //     listaSalas += salasAGenerar.get(i)[0] + " " + salasAGenerar.get(i)[1]+ " " + salasAGenerar.get(i)[2] + "\n";
+    //         // }
+    //         // myWriter.write(listaSalas);
+    //         // myWriter.close();
+    //         // ACLMessage reply = new ACLMessage(ACLMessage.INFORM);
+	// 	    // reply.addReceiver(null); // cambiar
+	// 	    // reply.setContent("exiting");
+	// 	    // send(reply);
+    //     } catch (IOException e) {
+    //         System.out.println("Error al importar la matriz");
+    //     }
+    // } 
+
+    // Salas: (X Y Z)
+    static int[] sala1 = new int[]{7,3,7}; // puerta
+    static int[] sala2 = new int[]{17,7,17}; // sala cuadrada 1
+    static int[] sala3 = new int[]{10,4,10}; // sala cuadrada 2
+    static int[] sala4 = new int[]{14,6,18}; // sala rectangular 1
+    static int[] sala5 = new int[]{18,6,14}; // sala rectangular 2
+    static int[] sala6 = new int[]{20,7,20}; // sala final
+    static int[] sala7 = new int[]{15,12,15}; // sala torre
+    static int[][] salas = new int[][]{sala1,sala2,sala3,sala4,sala5,sala6,sala7};
+    static int[] valorSala = new int[]{10,10,4,5,5,10,8};
+    static List<Integer> salasVisitadas = new ArrayList<>();
+    static int[][] area;
+
+    private static int[] selecSalaRnd(){
+        List<Integer> indicesMayores = new ArrayList<>();
+        int mayorValor = 0;
+        for(int i=0;i<valorSala.length;i++){
+            if(valorSala[i] >= mayorValor && !salasVisitadas.contains(i)){
+                mayorValor = valorSala[i];
             }
-            myWriter.write(listaSalas);
-            myWriter.close();
-            // ACLMessage reply = new ACLMessage(ACLMessage.INFORM);
-		    // reply.addReceiver(null); // cambiar
-		    // reply.setContent("exiting");
-		    // send(reply);
-        } catch (IOException e) {
-            System.out.println("Error al importar la matriz");
         }
-    } 
+        for(int i=0;i<valorSala.length;i++){
+            if(valorSala[i] == mayorValor && !salasVisitadas.contains(i)){
+                indicesMayores.add(i);
+            }
+        }
+        if(indicesMayores.size() == 0){
+            return null;
+        }
+        Random random = new Random();
+        int index = random.nextInt(indicesMayores.size());
+        salasVisitadas.add(indicesMayores.get(index));
+        int[] aux = new int[3];
+        aux[0] = salas[indicesMayores.get(index)][0];
+        aux[1] = salas[indicesMayores.get(index)][2];
+        aux[2] = indicesMayores.get(index);
+        return aux;
+    }
+
+
+    private static void mctsV2(){
+        int[] sala= selecSalaRnd();
+        List<int[]> posicionesSalas = new ArrayList<>(); // [X, Z, indiceSala]
+        do{
+            // System.out.println(sala[0] + " " + sala[1] + " " + sala[2]);
+            //obtener posibles posiciones
+            posicionesSalas = obtenerPosValidasV2(sala[0], sala[1], sala[2]);
+            if(posicionesSalas.size() == 0){
+                break;
+            }
+            // System.out.println(posicionesSalas.size());
+            //elegir una pos random
+            Random random = new Random();
+            int index = random.nextInt(posicionesSalas.size());
+            int[] pos = posicionesSalas.get(index);
+            // System.out.println(pos[0] + " " + pos[1] + " ");
+            //ocupar area
+            for(int i=pos[0]; i<pos[0]+sala[0];i++){
+                for(int j=pos[1]; j<pos[1]+sala[1];j++){
+                    area[i][j] = sala[2]+1;
+                }
+            }
+            // for (int i = 0; i<40; i++){
+            //     for (int j = 0; j<40; j++){
+            //         System.out.print(area[i][j] + " ");
+            //     }
+            //     System.out.println("");
+            // }
+            sala = selecSalaRnd(); 
+        }while(sala!=null);
+    }
+
+    private List<int[]> mctsV2Aux(){
+        int[] sala;
+        List<int[]> posicionesSalas = new ArrayList<>(); // [X, Z, indiceSala]
+        do{
+            sala = selecSalaRnd();
+
+
+        }while(sala!=null);
+
+        return posicionesSalas;
+    }
+
+    private static List<int[]> obtenerPosValidasV2(int salaX, int salaZ, int id){
+        List<int[]> pos = new ArrayList<>();
+        boolean esValido = true;
+        for(int i=0;i+salaX<area.length;i++){
+            for(int j=0;j+salaZ<area[i].length;j++){
+                esValido = true;
+                if(id==0){
+                    if(j==0 || j+salaZ==area[i].length-1){
+                        if(area[i][j] == 0){
+                            for(int k=0;i+k<i+salaX;k++){
+                                for(int l=0;j+l<j+salaZ;l++){
+                                    if(area[i+k][j+l] != 0){
+                                        esValido = false;
+                                    }
+                                }
+                            }
+                            if(esValido){
+                                int[] sala = new int[]{i,j};
+                                pos.add(sala);
+                            }
+                        }
+                    }
+                }else{
+                    if(area[i][j] == 0){
+                        for(int k=0;i+k<i+salaX;k++){
+                            for(int l=0;j+l<j+salaZ;l++){
+                                if(area[i+k][j+l] != 0){
+                                    esValido = false;
+                                }
+                            }
+                        }
+                        if(esValido){
+                            int[] sala = new int[]{i,j};
+                            pos.add(sala);
+                        }
+                    }
+                }
+            }
+        }
+        return pos;
+    }
+
+
+
+
+
+
+
+    protected void setup(){
+        System.out.println("Agente "+getLocalName()+" ha empezado");
+        int[] pos = new int[3], tam = new int[3]; // pos: bloque en el que generar
+        List<int[]> posId = new ArrayList<>(); //[X, Z, indiceSala]
+        try {
+            int[][] posTam = leerPosTam();
+            pos = posTam[0];
+            tam = posTam[1];
+        } catch (IOException e) {
+            System.out.println("Error al leer el archivo pos.txt");
+        }
+        area = new int[tam[0]][tam[2]];
+        // for (int i = 0; i<tam[0]; i++){
+        //     for (int j = 0; j<tam[2]; j++){
+        //         area[i][j] = 0;
+        //     }
+        // }
+        while(salasVisitadas.size() < 6){
+            for (int i = 0; i<tam[0]; i++){
+                for (int j = 0; j<tam[2]; j++){
+                    area[i][j] = 0;
+                }
+            }
+            salasVisitadas = new ArrayList<>();
+            mctsV2();
+            // System.out.println(salasVisitadas.size());
+        }
+        for (int i = 0; i<40; i++){
+            for (int j = 0; j<40; j++){
+                System.out.print(area[i][j] + " ");
+            }
+            System.out.println("");
+        }
+        
+        // System.out.println(tam[0] + " " + tam[1] + " " + tam[2] + " ");
+
+    }
 
 }

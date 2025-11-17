@@ -5,5 +5,7 @@
         "jade.jar",
         "gson-2.10.1-javadoc.jar",
         "gson-2.10.1.jar"
-    ]
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python-envs.pythonProjects": []
 }
