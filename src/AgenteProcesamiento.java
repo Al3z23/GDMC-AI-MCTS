@@ -1,20 +1,26 @@
 package src;
 
+import jade.content.lang.sl.SLCodec;
+import jade.content.onto.basic.Action;
+import jade.core.AID;
 import jade.core.Agent;
 import jade.core.behaviours.Behaviour;
 import jade.core.behaviours.CyclicBehaviour;
 import jade.core.behaviours.OneShotBehaviour;
+import jade.domain.FIPANames;
+import jade.domain.JADEAgentManagement.JADEManagementOntology;
+import jade.domain.JADEAgentManagement.ShutdownPlatform;
 import jade.lang.acl.ACLMessage;
-
-import java.io.FileWriter;   // Import the FileWriter class
-import java.io.IOException;  // Import the IOException class
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
+// Import the FileWriter class
+// Import the IOException class
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,6 +40,7 @@ public class AgenteProcesamiento extends Agent {
     public static List<int[]> mejorLista = new ArrayList<>();
     //public static List<int[]> listaAct = new ArrayList<>();
     public static int puntuacionMejorLista;
+    public static boolean resetWeights = false;
 
     private static int[][][] leerMatriz() throws IOException {
         String contenido = new String(Files.readAllBytes(Paths.get("matrix.txt")));
@@ -300,7 +307,7 @@ public class AgenteProcesamiento extends Agent {
     // } 
 
     // Salas: (X Y Z)
-    static int[] sala1 = new int[]{7,3,7}; // puerta
+    static int[] sala1 = new int[]{7,7,3}; // puerta
     static int[] sala2 = new int[]{17,7,17}; // sala cuadrada 1
     static int[] sala3 = new int[]{10,4,10}; // sala cuadrada 2
     static int[] sala4 = new int[]{14,6,18}; // sala rectangular 1
@@ -308,7 +315,7 @@ public class AgenteProcesamiento extends Agent {
     static int[] sala6 = new int[]{20,7,20}; // sala final
     static int[] sala7 = new int[]{15,12,15}; // sala torre
     static int[][] salas = new int[][]{sala1,sala2,sala3,sala4,sala5,sala6,sala7};
-    static int[] valorSala = new int[]{10,10,4,5,5,10,8};
+    static int[] valorSala = new int[]{1000,1,1,1,1,1000,1};
     static List<Integer> salasVisitadas = new ArrayList<>();
     static int[][] area;
 
@@ -339,9 +346,10 @@ public class AgenteProcesamiento extends Agent {
     }
 
 
-    private static void mctsV2(){
+    private static List<int[]> mctsV2(){
         int[] sala= selecSalaRnd();
         List<int[]> posicionesSalas = new ArrayList<>(); // [X, Z, indiceSala]
+        List<int[]> posicionesSalaEscogida = new ArrayList<>(); // [X, Z, indiceSala]
         do{
             // System.out.println(sala[0] + " " + sala[1] + " " + sala[2]);
             //obtener posibles posiciones
@@ -354,6 +362,7 @@ public class AgenteProcesamiento extends Agent {
             Random random = new Random();
             int index = random.nextInt(posicionesSalas.size());
             int[] pos = posicionesSalas.get(index);
+            posicionesSalaEscogida.add(new int[]{pos[0],pos[1], sala[2]+1});
             // System.out.println(pos[0] + " " + pos[1] + " ");
             //ocupar area
             for(int i=pos[0]; i<pos[0]+sala[0];i++){
@@ -369,18 +378,7 @@ public class AgenteProcesamiento extends Agent {
             // }
             sala = selecSalaRnd(); 
         }while(sala!=null);
-    }
-
-    private List<int[]> mctsV2Aux(){
-        int[] sala;
-        List<int[]> posicionesSalas = new ArrayList<>(); // [X, Z, indiceSala]
-        do{
-            sala = selecSalaRnd();
-
-
-        }while(sala!=null);
-
-        return posicionesSalas;
+        return posicionesSalaEscogida;
     }
 
     private static List<int[]> obtenerPosValidasV2(int salaX, int salaZ, int id){
@@ -390,7 +388,7 @@ public class AgenteProcesamiento extends Agent {
             for(int j=0;j+salaZ<area[i].length;j++){
                 esValido = true;
                 if(id==0){
-                    if(j==0 || j+salaZ==area[i].length-1){
+                    if(j==0){
                         if(area[i][j] == 0){
                             for(int k=0;i+k<i+salaX;k++){
                                 for(int l=0;j+l<j+salaZ;l++){
@@ -426,15 +424,84 @@ public class AgenteProcesamiento extends Agent {
     }
 
 
+     private void solicitarApagadoPlataforma() {
+        try {
+            ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
+            msg.addReceiver(getAMS());
+            msg.setLanguage(FIPANames.ContentLanguage.FIPA_SL0);
+            msg.setOntology(JADEManagementOntology.getInstance().getName());
+
+            ShutdownPlatform sp = new ShutdownPlatform();
+            Action act = new Action(getAID(), sp);
+            getContentManager().fillContent(msg, act);
+            send(msg);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
 
+    @Override
+    protected void takeDown() {
+        // Aquí se llama automáticamente cuando alguien hace doDelete()
+        solicitarApagadoPlataforma();
+        System.out.println(getLocalName() + " terminando y pidiendo apagar la plataforma.");
+    }
 
 
+    private void reiniciarPesos() throws IOException{
+        FileWriter myWriter;
+        try {
+            myWriter = new FileWriter("pesos.txt");
+            // DecimalFormat df = new DecimalFormat("#.#####");
+            String pesos = "";
+            for(int i = 0; i<7;i++){
+                // pesos += df.format((Double)1.0 / 7) + "\n";
+                pesos += "1" + "\n";
+            }
+            myWriter.write(pesos);
+            myWriter.close();
+        }catch(Exception e){
+            System.out.println("Algo fue mal");
+        }
+        
+    }
+
+    private void insertarPesos() throws IOException{
+        List<Integer> lista = new ArrayList<>();
+            BufferedReader br = new BufferedReader(new FileReader("pesos.txt"));
+            String linea;
+            while ((linea = br.readLine()) != null) {
+                lista.add(Integer.parseInt(linea.trim()));
+            }
+            br.close();
+            int[] numeros = lista.stream().mapToInt(Integer::intValue).toArray();
+            valorSala[1] = numeros[1];
+            valorSala[2] = numeros[2];
+            valorSala[3] = numeros[3];
+            valorSala[4] = numeros[4];
+            valorSala[6] = numeros[6];
+    }
 
     protected void setup(){
         System.out.println("Agente "+getLocalName()+" ha empezado");
+        
+        getContentManager().registerLanguage(new SLCodec(), FIPANames.ContentLanguage.FIPA_SL0);
+        getContentManager().registerOntology(JADEManagementOntology.getInstance());
         int[] pos = new int[3], tam = new int[3]; // pos: bloque en el que generar
         List<int[]> posId = new ArrayList<>(); //[X, Z, indiceSala]
+
+        try {
+            if(resetWeights){
+                reiniciarPesos();
+            }
+        } catch (IOException e) {
+        }
+        try {
+            insertarPesos();
+        } catch (IOException e) {
+        }
+        
         try {
             int[][] posTam = leerPosTam();
             pos = posTam[0];
@@ -448,25 +515,76 @@ public class AgenteProcesamiento extends Agent {
         //         area[i][j] = 0;
         //     }
         // }
-        while(salasVisitadas.size() < 6){
+
+        ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
+        msg.addReceiver(new AID("agenteInterf", AID.ISLOCALNAME));
+        msg.setContent("UNLOCK");
+
+        send(msg);
+
+        ACLMessage msg2 = blockingReceive(); // bloquea hasta recibir
+        String msgc = msg2.getContent();
+        if (msgc.equals("7") || msgc.equals("2") ||
+            msgc.equals("3") || msgc.equals("4") || msgc.equals("5")) {
+            System.out.println("Desbloqueado Proc");
+        }
+        valorSala[Integer.parseInt(msgc)-1]++;
+        LocalTime ini = LocalTime.now();
+
+        // MONTECARLO TREE SEARCH
+        boolean valido = false;
+        while(salasVisitadas.size() < 7 || !valido){
+            valido = false;
+            // Reset area
             for (int i = 0; i<tam[0]; i++){
                 for (int j = 0; j<tam[2]; j++){
                     area[i][j] = 0;
                 }
             }
             salasVisitadas = new ArrayList<>();
-            mctsV2();
-            // System.out.println(salasVisitadas.size());
+            // Llamar al algoritmo
+            posId = mctsV2();
+            for(int[] n : posId){
+                if(n[2] == Integer.parseInt(msgc)){
+                    valido = true;
+                }
+            }
+
         }
+
+        // Salas matriz 2D print
         for (int i = 0; i<40; i++){
             for (int j = 0; j<40; j++){
                 System.out.print(area[i][j] + " ");
             }
             System.out.println("");
         }
+        // Lista salas print
+        for(int[] f : posId){
+            for(int i = 0; i<f.length;i++){
+                System.out.print(f[i] + " ");
+            }
+            System.out.println("");
+        }
+        // System.out.println("Numero de intentos: "+ contador);
+        LocalTime fin = LocalTime.now();
+        System.out.println("Tiempo de procesamiento: " + Duration.between(ini, fin).toMillis() + "ms.");
+        // Escribir salas a generar para python
+        FileWriter myWriter;
+        try {
+            myWriter = new FileWriter("posSalasGen.txt");
+            String listaSalas = "";
+            for(int[] f : posId){
+                listaSalas += f[0] + " " + f[1] + " " + f[2] + "\n";
+            }
+            myWriter.write(listaSalas);
+            myWriter.close();
+        } catch (IOException e) {
+            System.out.println("Error al escribir la posicion de las salas");
+        }
         
-        // System.out.println(tam[0] + " " + tam[1] + " " + tam[2] + " ");
-
+        // Cerrar JADE
+        doDelete();
     }
 
 }
